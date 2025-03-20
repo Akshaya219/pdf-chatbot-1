@@ -69,6 +69,18 @@ def init_db():
                 FOREIGN KEY (pdf_id) REFERENCES pdfs (id)
             );
         ''')
+
+        # Add page_count column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE pdfs ADD COLUMN page_count INTEGER;")
+            conn.commit()
+            print("Added page_count column to pdfs table.")  # Debugging output
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e):
+                pass  # Column already exists, no action needed
+            else:
+                raise  # Re-raise unexpected errors
+
         conn.commit()
         return conn
     except sqlite3.Error as e:
