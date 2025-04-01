@@ -16,7 +16,7 @@ from langchain_core.documents import Document
 DATA_DIR = "./data"
 DB_PATH = os.path.join(DATA_DIR, "study_assistant.db")
 os.makedirs(DATA_DIR, exist_ok=True)
-
+ 
 # Database initialization with streamlined tables
 def init_db():
     try:
@@ -29,8 +29,8 @@ def init_db():
                 hash TEXT,
                 upload_date TIMESTAMP,
                 vector_store_path TEXT,
-                page_count INTEGER,
-                has_images BOOLEAN DEFAULT 0
+                page_count INTEGER DEFAULT 0,
+                has_images INTEGER DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS queries (
                 id TEXT PRIMARY KEY,
@@ -70,16 +70,15 @@ def init_db():
             );
         ''')
 
-        # Add page_count column if it doesn't exist (for existing databases)
+        # Ensure the necessary columns exist in the pdfs table
         try:
-            cursor.execute("ALTER TABLE pdfs ADD COLUMN page_count INTEGER;")
-            conn.commit()
-            print("Added page_count column to pdfs table.")  # Debugging output
-        except sqlite3.OperationalError as e:
-            if "duplicate column name" in str(e):
-                pass  # Column already exists, no action needed
-            else:
-                raise  # Re-raise unexpected errors
+            cursor.execute("ALTER TABLE pdfs ADD COLUMN page_count INTEGER DEFAULT 0;")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE pdfs ADD COLUMN has_images INTEGER DEFAULT 0;")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
         conn.commit()
         return conn
@@ -119,11 +118,7 @@ def extract_text_from_pdf(pdf_path):
     doc = fitz.open(pdf_path)
     text_per_page = [(page_num, page.get_text("text")) for page_num, page in enumerate(doc)]
     page_count = len(doc)
-    has_images = False
-    for page in doc:
-        if page.get_images():
-            has_images = True
-            break
+    has_images = any(page.get_images() for page in doc)
     doc.close()
     return text_per_page, page_count, has_images
 
@@ -440,7 +435,7 @@ def main():
                         with st.expander("View relevant images", expanded=True):
                             cols = st.columns(min(3, len(images)))
                             for i, img in enumerate(images):
-                                cols[i % 3].image(img, use_column_width=True)
+                                cols[i % 3].image(img, use_container_width=True)
                     else:
                         st.info("No relevant images found for this query.")
             else:
